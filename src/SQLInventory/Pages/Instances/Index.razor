@@ -1,0 +1,216 @@
+@page "/instances"
+@inject InstanceService InstanceService
+@inject NavigationManager Nav
+
+<PageTitle>Instances - SQL Inventory</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-server me-2"></i>SQL Instances</h4>
+    <a href="/instances/new" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg me-1"></i>Add Instance
+    </a>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-5">
+                <input class="form-control form-control-sm" placeholder="Search server name or notes..."
+                       @bind="_search" @bind:event="oninput" @oninput="LoadAsync" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_envFilter" @bind:after="LoadAsync">
+                    <option value="0">All environments</option>
+                    @foreach (var env in _environments)
+                    {
+                        <option value="@env.EnvironmentId">@env.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select form-select-sm" @bind="_activeFilter" @bind:after="LoadAsync">
+                    <option value="">All</option>
+                    <option value="true">Active only</option>
+                    <option value="false">Inactive only</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end text-muted small">
+                @_instances.Count result(s)
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        @if (_loading)
+        {
+            <div class="p-3 text-muted d-flex gap-2 align-items-center">
+                <div class="spinner-border spinner-border-sm"></div> Loading...
+            </div>
+        }
+        else if (_instances.Count == 0)
+        {
+            <div class="p-3 text-muted">No instances found.
+                <a href="/instances/new">Add the first one.</a>
+            </div>
+        }
+        else
+        {
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Instance</th>
+                        <th>Environment</th>
+                        <th>Version / Edition</th>
+                        <th>Host OS</th>
+                        <th class="text-center">AG</th>
+                        <th class="text-center">Clustered</th>
+                        <th>Tags</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var inst in _instances)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/instances/@inst.InstanceId" class="fw-semibold text-decoration-none">
+                                    @inst.FullName
+                                </a>
+                                @if (inst.Port != 1433)
+                                {
+                                    <span class="text-muted small ms-1">,@inst.Port</span>
+                                }
+                            </td>
+                            <td>
+                                <span class="badge-env" style="background-color:@inst.Environment.ColorHex">
+                                    @inst.Environment.Name
+                                </span>
+                            </td>
+                            <td>
+                                @if (inst.SqlVersion is not null)
+                                {
+                                    <span>SQL @inst.SqlVersion</span>
+                                }
+                                @if (inst.SqlEdition is not null)
+                                {
+                                    <span class="text-muted small ms-1">@inst.SqlEdition</span>
+                                }
+                            </td>
+                            <td class="text-muted small">@(inst.HostOperatingSystem ?? "—")</td>
+                            <td class="text-center">
+                                @if (inst.IsAlwaysOnEnabled)
+                                {
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                @if (inst.IsClustered)
+                                {
+                                    <i class="bi bi-check-circle-fill text-info"></i>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                @foreach (var it in inst.InstanceTags)
+                                {
+                                    <span class="badge me-1" style="background-color:@it.Tag.ColorHex">
+                                        @it.Tag.Name
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                @if (inst.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a href="/instances/@inst.InstanceId/edit" class="btn btn-outline-secondary btn-sm me-1">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => ConfirmDelete(inst)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@if (_deleteTarget is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                    <button class="btn-close" @onclick="() => _deleteTarget = null"></button>
+                </div>
+                <div class="modal-body">
+                    Delete <strong>@_deleteTarget.FullName</strong>? This will also remove all associated databases and tags.
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _deleteTarget = null">Cancel</button>
+                    <button class="btn btn-danger" @onclick="DeleteAsync">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SqlInstance> _instances = [];
+    private List<Environment> _environments = [];
+    private string _search = "";
+    private int _envFilter = 0;
+    private string _activeFilter = "true";
+    private bool _loading = true;
+    private SqlInstance? _deleteTarget;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _environments = await InstanceService.GetEnvironmentsAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+        bool? active = _activeFilter switch { "true" => true, "false" => false, _ => null };
+        _instances = await InstanceService.GetAllAsync(
+            string.IsNullOrWhiteSpace(_search) ? null : _search,
+            _envFilter == 0 ? null : _envFilter,
+            active);
+        _loading = false;
+    }
+
+    private void ConfirmDelete(SqlInstance inst) => _deleteTarget = inst;
+
+    private async Task DeleteAsync()
+    {
+        if (_deleteTarget is not null)
+        {
+            await InstanceService.DeleteAsync(_deleteTarget.InstanceId);
+            _deleteTarget = null;
+            await LoadAsync();
+        }
+    }
+}

@@ -1,0 +1,288 @@
+@page "/instances/{Id:int}"
+@inject InstanceService InstanceService
+@inject DatabaseService DatabaseService
+@inject NavigationManager Nav
+
+<PageTitle>@(_instance?.FullName ?? "Instance") - SQL Inventory</PageTitle>
+
+@if (_instance is null)
+{
+    <div class="text-muted d-flex gap-2"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <a href="/instances" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+            <div>
+                <h4 class="mb-0">@_instance.FullName</h4>
+                <small class="text-muted">@_instance.ConnectionName</small>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="/instances/@_instance.InstanceId/edit" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil me-1"></i>Edit
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold">Instance Details</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5 text-muted">Environment</dt>
+                        <dd class="col-7">
+                            <span class="badge-env" style="background-color:@_instance.Environment.ColorHex">
+                                @_instance.Environment.Name
+                            </span>
+                        </dd>
+
+                        <dt class="col-5 text-muted">SQL Version</dt>
+                        <dd class="col-7">@(string.IsNullOrEmpty(_instance.SqlVersion) ? "—" : $"SQL {_instance.SqlVersion} {_instance.SqlEdition}")</dd>
+
+                        <dt class="col-5 text-muted">Build</dt>
+                        <dd class="col-7">@(_instance.SqlBuild ?? "—")</dd>
+
+                        <dt class="col-5 text-muted">Host OS</dt>
+                        <dd class="col-7">@(_instance.HostOperatingSystem ?? "—")</dd>
+
+                        <dt class="col-5 text-muted">CPU Count</dt>
+                        <dd class="col-7">@(_instance.CpuCount?.ToString() ?? "—")</dd>
+
+                        <dt class="col-5 text-muted">Max Memory</dt>
+                        <dd class="col-7">@(_instance.MaxMemoryMb.HasValue ? $"{_instance.MaxMemoryMb:N0} MB" : "—")</dd>
+
+                        <dt class="col-5 text-muted">Service Account</dt>
+                        <dd class="col-7">@(_instance.ServiceAccount ?? "—")</dd>
+
+                        <dt class="col-5 text-muted">Clustered</dt>
+                        <dd class="col-7">
+                            @if (_instance.IsClustered)
+                            { <span class="badge bg-info">Yes</span> }
+                            else
+                            { <span class="text-muted">No</span> }
+                        </dd>
+
+                        <dt class="col-5 text-muted">Always On</dt>
+                        <dd class="col-7">
+                            @if (_instance.IsAlwaysOnEnabled)
+                            { <span class="badge bg-success">Enabled</span> }
+                            else
+                            { <span class="text-muted">No</span> }
+                        </dd>
+
+                        <dt class="col-5 text-muted">Status</dt>
+                        <dd class="col-7">
+                            @if (_instance.IsActive)
+                            { <span class="badge bg-success">Active</span> }
+                            else
+                            { <span class="badge bg-secondary">Inactive</span> }
+                        </dd>
+
+                        @if (_instance.LastDiscoveredUtc.HasValue)
+                        {
+                            <dt class="col-5 text-muted">Last Discovered</dt>
+                            <dd class="col-7">@_instance.LastDiscoveredUtc.Value.ToString("yyyy-MM-dd HH:mm") UTC</dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold">Tags &amp; Notes</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        @if (_instance.InstanceTags.Count == 0)
+                        {
+                            <span class="text-muted">No tags</span>
+                        }
+                        @foreach (var it in _instance.InstanceTags)
+                        {
+                            <span class="badge me-1 mb-1" style="background-color:@it.Tag.ColorHex">@it.Tag.Name</span>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(_instance.Notes))
+                    {
+                        <p class="mb-0" style="white-space:pre-wrap">@_instance.Notes</p>
+                    }
+                    else
+                    {
+                        <span class="text-muted">No notes</span>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Databases -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="bi bi-database me-1"></i>Databases (@_instance.Databases.Count)</span>
+            <button class="btn btn-outline-primary btn-sm" @onclick="ShowAddDb">
+                <i class="bi bi-plus-lg me-1"></i>Add Database
+            </button>
+        </div>
+        <div class="card-body p-0">
+            @if (_instance.Databases.Count == 0)
+            {
+                <p class="text-muted p-3 mb-0">No databases registered.</p>
+            }
+            else
+            {
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>State</th>
+                            <th>Recovery</th>
+                            <th>Compat</th>
+                            <th class="text-end">Size (GB)</th>
+                            <th>Last Full Backup</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var db in _instance.Databases.OrderBy(d => d.DatabaseName))
+                        {
+                            <tr>
+                                <td class="fw-semibold">@db.DatabaseName</td>
+                                <td>
+                                    <span class="badge @(db.StateDesc == "ONLINE" ? "bg-success" : "bg-warning text-dark")">
+                                        @(db.StateDesc ?? "—")
+                                    </span>
+                                </td>
+                                <td>@(db.RecoveryModel ?? "—")</td>
+                                <td>@(db.CompatibilityLevel?.ToString() ?? "—")</td>
+                                <td class="text-end">@(db.SizeGb?.ToString("N2") ?? "—")</td>
+                                <td class="text-muted small">
+                                    @(db.LastFullBackupUtc?.ToString("yyyy-MM-dd") ?? "Never")
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-danger btn-sm"
+                                            @onclick="() => DeleteDbAsync(db.DatabaseId)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    <!-- Availability Groups -->
+    @if (_instance.PrimaryAvailabilityGroups.Count > 0 || _instance.AgReplicas.Count > 0)
+    {
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold"><i class="bi bi-diagram-3 me-1"></i>Availability Groups</div>
+            <div class="card-body">
+                @foreach (var ag in _instance.PrimaryAvailabilityGroups)
+                {
+                    <h6>@ag.AgName
+                        <span class="badge bg-secondary ms-2">@(ag.ClusterType ?? "WSFC")</span>
+                    </h6>
+                    <table class="table table-sm table-bordered mb-3">
+                        <thead class="table-light">
+                            <tr><th>Replica</th><th>Role</th><th>Availability Mode</th><th>Failover Mode</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in ag.Replicas)
+                            {
+                                <tr>
+                                    <td>@r.Instance.FullName</td>
+                                    <td><span class="badge @(r.Role == "PRIMARY" ? "bg-primary" : "bg-secondary")">@r.Role</span></td>
+                                    <td>@(r.AvailabilityMode ?? "—")</td>
+                                    <td>@(r.FailoverMode ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+}
+
+<!-- Add DB modal -->
+@if (_showAddDb)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Database</h5>
+                    <button class="btn-close" @onclick="() => _showAddDb = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Database Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_newDb.DatabaseName" />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Recovery Model</label>
+                            <select class="form-select" @bind="_newDb.RecoveryModel">
+                                <option value="">—</option>
+                                <option>FULL</option>
+                                <option>SIMPLE</option>
+                                <option>BULK_LOGGED</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">State</label>
+                            <select class="form-select" @bind="_newDb.StateDesc">
+                                <option>ONLINE</option>
+                                <option>OFFLINE</option>
+                                <option>RESTORING</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showAddDb = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveDbAsync">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private SqlInstance? _instance;
+    private bool _showAddDb;
+    private SqlDatabase _newDb = new();
+
+    protected override async Task OnParametersSetAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _instance = await InstanceService.GetByIdAsync(Id);
+        if (_instance is null) Nav.NavigateTo("/instances");
+    }
+
+    private void ShowAddDb()
+    {
+        _newDb = new SqlDatabase { InstanceId = Id, StateDesc = "ONLINE" };
+        _showAddDb = true;
+    }
+
+    private async Task SaveDbAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newDb.DatabaseName)) return;
+        await DatabaseService.CreateAsync(_newDb);
+        _showAddDb = false;
+        await ReloadAsync();
+    }
+
+    private async Task DeleteDbAsync(int dbId)
+    {
+        await DatabaseService.DeleteAsync(dbId);
+        await ReloadAsync();
+    }
+}

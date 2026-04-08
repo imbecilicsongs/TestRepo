@@ -1,0 +1,220 @@
+@page "/instances/new"
+@page "/instances/{Id:int}/edit"
+@inject InstanceService InstanceService
+@inject TagService TagService
+@inject NavigationManager Nav
+
+<PageTitle>@(_isNew ? "Add Instance" : "Edit Instance") - SQL Inventory</PageTitle>
+
+<div class="d-flex align-items-center gap-2 mb-3">
+    <a href="/instances" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+    <h4 class="mb-0">@(_isNew ? "Add Instance" : $"Edit: {_model.ServerName}")</h4>
+</div>
+
+@if (_loading)
+{
+    <div class="text-muted d-flex gap-2"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+}
+else
+{
+    <div class="card shadow-sm" style="max-width:760px">
+        <div class="card-body">
+            <EditForm Model="_model" OnValidSubmit="SaveAsync">
+                <DataAnnotationsValidator />
+
+                <h6 class="text-muted mb-3 text-uppercase small">Connection</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Server Name <span class="text-danger">*</span></label>
+                        <InputText class="form-control" @bind-Value="_model.ServerName" placeholder="SQL-PROD-01" />
+                        <ValidationMessage For="() => _model.ServerName" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Instance Name</label>
+                        <InputText class="form-control" @bind-Value="_model.InstanceName" placeholder="(default)" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Port</label>
+                        <InputNumber class="form-control" @bind-Value="_model.Port" />
+                    </div>
+                </div>
+
+                <h6 class="text-muted mb-3 text-uppercase small">Classification</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Environment <span class="text-danger">*</span></label>
+                        <InputSelect class="form-select" @bind-Value="_model.EnvironmentId">
+                            <option value="0">-- select --</option>
+                            @foreach (var env in _environments)
+                            {
+                                <option value="@env.EnvironmentId">@env.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label">Tags</label>
+                        <div class="d-flex flex-wrap gap-2 border rounded p-2" style="min-height:38px">
+                            @foreach (var tag in _allTags)
+                            {
+                                var selected = _selectedTagIds.Contains(tag.TagId);
+                                <button type="button"
+                                        class="btn btn-sm @(selected ? "text-white" : "btn-outline-secondary")"
+                                        style="@(selected ? $"background-color:{tag.ColorHex};border-color:{tag.ColorHex}" : "")"
+                                        @onclick="() => ToggleTag(tag.TagId)">
+                                    @tag.Name
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="text-muted mb-3 text-uppercase small">SQL Server Details</h6>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Version</label>
+                        <InputSelect class="form-select" @bind-Value="_model.SqlVersion">
+                            <option value="">Unknown</option>
+                            <option>2022</option>
+                            <option>2019</option>
+                            <option>2017</option>
+                            <option>2016</option>
+                            <option>2014</option>
+                            <option>2012</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Edition</label>
+                        <InputSelect class="form-select" @bind-Value="_model.SqlEdition">
+                            <option value="">Unknown</option>
+                            <option>Enterprise</option>
+                            <option>Standard</option>
+                            <option>Developer</option>
+                            <option>Express</option>
+                            <option>Web</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label">Build</label>
+                        <InputText class="form-control" @bind-Value="_model.SqlBuild" placeholder="e.g. 16.0.1000.6" />
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Host Operating System</label>
+                        <InputText class="form-control" @bind-Value="_model.HostOperatingSystem" placeholder="Windows Server 2022" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">CPU Count</label>
+                        <InputNumber class="form-control" @bind-Value="_model.CpuCount" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Max Memory (MB)</label>
+                        <InputNumber class="form-control" @bind-Value="_model.MaxMemoryMb" />
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Service Account</label>
+                        <InputText class="form-control" @bind-Value="_model.ServiceAccount" placeholder="DOMAIN\svc_sql" />
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end pb-1">
+                        <div class="form-check me-3">
+                            <InputCheckbox class="form-check-input" @bind-Value="_model.IsClustered" id="chkClustered" />
+                            <label class="form-check-label" for="chkClustered">Clustered</label>
+                        </div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end pb-1">
+                        <div class="form-check me-3">
+                            <InputCheckbox class="form-check-input" @bind-Value="_model.IsAlwaysOnEnabled" id="chkAG" />
+                            <label class="form-check-label" for="chkAG">Always On</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <InputTextArea class="form-control" rows="3" @bind-Value="_model.Notes" />
+                </div>
+
+                <div class="form-check mb-4">
+                    <InputCheckbox class="form-check-input" @bind-Value="_model.IsActive" id="chkActive" />
+                    <label class="form-check-label" for="chkActive">Active</label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger">@_error</div>
+                }
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                    <a href="/instances" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private SqlInstance _model = new() { Port = 1433, IsActive = true };
+    private List<Environment> _environments = [];
+    private List<Tag> _allTags = [];
+    private HashSet<int> _selectedTagIds = [];
+    private bool _isNew => Id is null;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _environments = await InstanceService.GetEnvironmentsAsync();
+        _allTags = await TagService.GetAllAsync();
+
+        if (!_isNew)
+        {
+            var instance = await InstanceService.GetByIdAsync(Id!.Value);
+            if (instance is null) { Nav.NavigateTo("/instances"); return; }
+            _model = instance;
+            _selectedTagIds = instance.InstanceTags.Select(it => it.TagId).ToHashSet();
+        }
+
+        _loading = false;
+    }
+
+    private void ToggleTag(int tagId)
+    {
+        if (!_selectedTagIds.Remove(tagId))
+            _selectedTagIds.Add(tagId);
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_isNew)
+                await InstanceService.CreateAsync(_model);
+            else
+                await InstanceService.UpdateAsync(_model);
+
+            await InstanceService.SetTagsAsync(_model.InstanceId, _selectedTagIds);
+            Nav.NavigateTo($"/instances/{_model.InstanceId}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}
