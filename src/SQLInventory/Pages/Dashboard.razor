@@ -1,0 +1,138 @@
+@page "/"
+@inject InstanceService InstanceService
+
+<PageTitle>Dashboard - SQL Inventory</PageTitle>
+
+<h4 class="mb-4"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
+
+@if (_stats is null)
+{
+    <div class="d-flex align-items-center gap-2 text-muted">
+        <div class="spinner-border spinner-border-sm"></div> Loading...
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="bi bi-server fs-3 text-primary"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold">@_stats.ActiveInstances</div>
+                        <div class="text-muted small">Active Instances</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3">
+                        <i class="bi bi-database fs-3 text-success"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold">@_stats.TotalDatabases</div>
+                        <div class="text-muted small">Total Databases</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-warning bg-opacity-10 p-3">
+                        <i class="bi bi-diagram-3 fs-3 text-warning"></i>
+                    </div>
+                    <div>
+                        <div class="fs-2 fw-bold">@_stats.AvailabilityGroups</div>
+                        <div class="text-muted small">Availability Groups</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-md-5">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">Instances by Environment</div>
+                <div class="card-body">
+                    @if (_stats.ByEnvironment.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No instances yet.</p>
+                    }
+                    else
+                    {
+                        @foreach (var env in _stats.ByEnvironment.OrderByDescending(e => e.Count))
+                        {
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="badge-env" style="background-color:@env.ColorHex">@env.Name</span>
+                                <span class="fw-semibold">@env.Count</span>
+                            </div>
+                            <div class="progress mb-3" style="height:6px">
+                                <div class="progress-bar" role="progressbar"
+                                     style="width:@(env.Count * 100 / Math.Max(_stats.ActiveInstances, 1))%;background-color:@env.ColorHex">
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-md-7">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">Recently Modified Instances</div>
+                <div class="card-body p-0">
+                    @if (_stats.RecentlyModified.Count == 0)
+                    {
+                        <p class="text-muted p-3 mb-0">No instances yet.</p>
+                    }
+                    else
+                    {
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Instance</th>
+                                    <th>Environment</th>
+                                    <th>Version</th>
+                                    <th>Modified</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var inst in _stats.RecentlyModified)
+                                {
+                                    <tr>
+                                        <td>
+                                            <a href="instances/@inst.InstanceId" class="text-decoration-none fw-semibold">
+                                                @inst.FullName
+                                            </a>
+                                        </td>
+                                        <td>
+                                            <span class="badge-env" style="background-color:@inst.Environment.ColorHex">
+                                                @inst.Environment.Name
+                                            </span>
+                                        </td>
+                                        <td>@(inst.SqlVersion ?? "—")</td>
+                                        <td class="text-muted small">@inst.ModifiedUtc.ToString("yyyy-MM-dd")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardStats? _stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _stats = await InstanceService.GetDashboardStatsAsync();
+    }
+}

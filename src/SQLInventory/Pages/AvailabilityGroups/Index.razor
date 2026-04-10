@@ -1,0 +1,181 @@
+@page "/availability-groups"
+@inject AvailabilityGroupService AgService
+@inject InstanceService InstanceService
+
+<PageTitle>Availability Groups - SQL Inventory</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-diagram-3 me-2"></i>Availability Groups</h4>
+    <button class="btn btn-primary btn-sm" @onclick="() => _showAdd = true">
+        <i class="bi bi-plus-lg me-1"></i>Add AG
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-muted d-flex gap-2"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+}
+else if (_ags.Count == 0)
+{
+    <div class="card shadow-sm p-4 text-center text-muted">
+        No availability groups registered. Add one manually or use Discovery.
+    </div>
+}
+else
+{
+    @foreach (var ag in _ags)
+    {
+        <div class="card shadow-sm mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="fw-semibold fs-6">@ag.AgName</span>
+                    @if (ag.ClusterType is not null)
+                    {
+                        <span class="badge bg-secondary ms-2">@ag.ClusterType</span>
+                    }
+                </div>
+                <div class="d-flex gap-2">
+                    <span class="text-muted small">Primary: <strong>@ag.PrimaryInstance.FullName</strong></span>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteAgAsync(ag.AgId)">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+            @if (ag.Replicas.Count > 0)
+            {
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Replica</th>
+                                <th>Role</th>
+                                <th>Availability Mode</th>
+                                <th>Failover Mode</th>
+                                <th>Seeding Mode</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in ag.Replicas.OrderBy(r => r.Role))
+                            {
+                                <tr>
+                                    <td>
+                                        <a href="/instances/@r.InstanceId" class="text-decoration-none">
+                                            @r.Instance.FullName
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(r.Role == "PRIMARY" ? "bg-primary" : "bg-secondary")">
+                                            @r.Role
+                                        </span>
+                                    </td>
+                                    <td class="small">@(r.AvailabilityMode ?? "—")</td>
+                                    <td class="small">@(r.FailoverMode ?? "—")</td>
+                                    <td class="small">@(r.SeedingMode ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(ag.Notes))
+            {
+                <div class="card-footer text-muted small">@ag.Notes</div>
+            }
+        </div>
+    }
+}
+
+@if (_showAdd)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Availability Group</h5>
+                    <button class="btn-close" @onclick="() => _showAdd = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">AG Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_newAg.AgName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Primary Instance <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_newAg.PrimaryInstanceId">
+                            <option value="0">-- select --</option>
+                            @foreach (var inst in _allInstances)
+                            {
+                                <option value="@inst.InstanceId">@inst.FullName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Cluster Type</label>
+                            <select class="form-select" @bind="_newAg.ClusterType">
+                                <option value="">—</option>
+                                <option>WSFC</option>
+                                <option>NONE</option>
+                                <option>EXTERNAL</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Backup Preference</label>
+                            <select class="form-select" @bind="_newAg.AutomatedBackupPreference">
+                                <option value="">—</option>
+                                <option>PRIMARY</option>
+                                <option>SECONDARY_ONLY</option>
+                                <option>SECONDARY</option>
+                                <option>NONE</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" rows="2" @bind="_newAg.Notes"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showAdd = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveAgAsync">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AvailabilityGroup> _ags = [];
+    private List<SqlInstance> _allInstances = [];
+    private bool _loading = true;
+    private bool _showAdd;
+    private AvailabilityGroup _newAg = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allInstances = await InstanceService.GetAllAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _ags = await AgService.GetAllAsync();
+        _loading = false;
+    }
+
+    private async Task SaveAgAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newAg.AgName) || _newAg.PrimaryInstanceId == 0) return;
+        await AgService.CreateAsync(_newAg);
+        _newAg = new AvailabilityGroup();
+        _showAdd = false;
+        await LoadAsync();
+    }
+
+    private async Task DeleteAgAsync(int agId)
+    {
+        await AgService.DeleteAsync(agId);
+        await LoadAsync();
+    }
+}

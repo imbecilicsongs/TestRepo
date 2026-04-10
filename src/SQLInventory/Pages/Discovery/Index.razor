@@ -1,0 +1,228 @@
+@page "/discovery"
+@inject DiscoveryService DiscoveryService
+@inject InstanceService InstanceService
+@inject NavigationManager Nav
+
+<PageTitle>Discovery - SQL Inventory</PageTitle>
+
+<h4 class="mb-1"><i class="bi bi-search me-2"></i>Instance Discovery</h4>
+<p class="text-muted mb-4">Connect to a live SQL Server instance to import its metadata into the inventory.</p>
+
+<div class="row g-4">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Connection Details</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Server Name <span class="text-danger">*</span></label>
+                    <input class="form-control" @bind="_server" placeholder="SQL-PROD-01" />
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-8">
+                        <label class="form-label">Instance Name</label>
+                        <input class="form-control" @bind="_instanceName" placeholder="(default instance)" />
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">Port</label>
+                        <input class="form-control" type="number" @bind="_port" />
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Environment <span class="text-danger">*</span></label>
+                    <select class="form-select" @bind="_environmentId">
+                        <option value="0">-- select --</option>
+                        @foreach (var env in _environments)
+                        {
+                            <option value="@env.EnvironmentId">@env.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="border rounded p-3 mb-3 bg-light">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" id="authWin" name="auth"
+                               checked="@_useWindowsAuth" @onchange="() => _useWindowsAuth = true" />
+                        <label class="form-check-label" for="authWin">Windows / Integrated Auth</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="authSQL" name="auth"
+                               checked="@(!_useWindowsAuth)" @onchange="() => _useWindowsAuth = false" />
+                        <label class="form-check-label" for="authSQL">SQL Server Auth</label>
+                    </div>
+
+                    @if (!_useWindowsAuth)
+                    {
+                        <div class="mt-2">
+                            <input class="form-control form-control-sm mb-2" @bind="_username" placeholder="Username" />
+                            <input class="form-control form-control-sm" type="password" @bind="_password" placeholder="Password" />
+                        </div>
+                    }
+                </div>
+
+                <button class="btn btn-primary w-100" @onclick="RunDiscoveryAsync" disabled="@(_discovering || string.IsNullOrWhiteSpace(_server) || _environmentId == 0)">
+                    @if (_discovering)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>Connecting...</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-search me-1"></i>
+                        <span>Discover</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        @if (_result is not null)
+        {
+            @if (!_result.Success)
+            {
+                <div class="alert alert-danger">
+                    <strong><i class="bi bi-exclamation-triangle me-1"></i>Connection failed</strong>
+                    <div class="mt-1 small">@_result.ErrorMessage</div>
+                </div>
+            }
+            else
+            {
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold text-success">
+                            <i class="bi bi-check-circle me-1"></i>Discovery successful
+                        </span>
+                        <button class="btn btn-success btn-sm" @onclick="ImportAsync" disabled="@_importing">
+                            @if (_importing) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="bi bi-cloud-download me-1"></i>Import into Inventory
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <h6 class="text-muted text-uppercase small mb-2">Instance</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-5 text-muted">Full Name</dt>
+                            <dd class="col-7">@_result.Instance!.FullName</dd>
+                            <dt class="col-5 text-muted">SQL Version</dt>
+                            <dd class="col-7">@($"SQL {_result.Instance.SqlVersion} ({_result.Instance.SqlBuild})")</dd>
+                            <dt class="col-5 text-muted">Edition</dt>
+                            <dd class="col-7">@(_result.Instance.SqlEdition ?? "—")</dd>
+                            <dt class="col-5 text-muted">Host OS</dt>
+                            <dd class="col-7">@(_result.Instance.HostOperatingSystem ?? "—")</dd>
+                            <dt class="col-5 text-muted">CPUs</dt>
+                            <dd class="col-7">@(_result.Instance.CpuCount?.ToString() ?? "—")</dd>
+                            <dt class="col-5 text-muted">Max Memory</dt>
+                            <dd class="col-7">@(_result.Instance.MaxMemoryMb.HasValue ? $"{_result.Instance.MaxMemoryMb:N0} MB" : "—")</dd>
+                            <dt class="col-5 text-muted">Always On</dt>
+                            <dd class="col-7">@(_result.Instance.IsAlwaysOnEnabled ? "Yes" : "No")</dd>
+                            <dt class="col-5 text-muted">Clustered</dt>
+                            <dd class="col-7">@(_result.Instance.IsClustered ? "Yes" : "No")</dd>
+                        </dl>
+                    </div>
+                </div>
+
+                @if (_result.Databases.Count > 0)
+                {
+                    <div class="card shadow-sm mb-3">
+                        <div class="card-header fw-semibold">
+                            <i class="bi bi-database me-1"></i>@_result.Databases.Count User Database(s)
+                        </div>
+                        <div class="card-body p-0">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-light">
+                                    <tr><th>Name</th><th>State</th><th>Recovery</th><th class="text-end">Size (MB)</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var db in _result.Databases.OrderBy(d => d.DatabaseName))
+                                    {
+                                        <tr>
+                                            <td>@db.DatabaseName</td>
+                                            <td><span class="badge @(db.StateDesc == "ONLINE" ? "bg-success" : "bg-warning text-dark")">@db.StateDesc</span></td>
+                                            <td class="small">@(db.RecoveryModel ?? "—")</td>
+                                            <td class="text-end small">@(db.SizeMb?.ToString("N0") ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+
+                @if (_result.AvailabilityGroups.Count > 0)
+                {
+                    <div class="card shadow-sm">
+                        <div class="card-header fw-semibold">
+                            <i class="bi bi-diagram-3 me-1"></i>@_result.AvailabilityGroups.Count Availability Group(s)
+                        </div>
+                        <div class="card-body">
+                            @foreach (var ag in _result.AvailabilityGroups)
+                            {
+                                <div class="mb-2">
+                                    <strong>@ag.AgName</strong>
+                                    <span class="text-muted small ms-2">@ag.ClusterType</span>
+                                    <ul class="mb-0 small">
+                                        @foreach (var r in ag.Replicas)
+                                        {
+                                            <li>@r.ReplicaServerName — <strong>@r.Role</strong> (@r.AvailabilityMode)</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+        }
+        else if (!_discovering)
+        {
+            <div class="card shadow-sm border-dashed">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="bi bi-search fs-1 mb-3 d-block opacity-25"></i>
+                    <p class="mb-0">Fill in the connection details and click <strong>Discover</strong> to preview the instance metadata before importing.</p>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Environment> _environments = [];
+    private string _server = "";
+    private string? _instanceName;
+    private int _port = 1433;
+    private int _environmentId;
+    private bool _useWindowsAuth = true;
+    private string? _username;
+    private string? _password;
+    private bool _discovering;
+    private bool _importing;
+    private DiscoveryResult? _result;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _environments = await InstanceService.GetEnvironmentsAsync();
+    }
+
+    private async Task RunDiscoveryAsync()
+    {
+        _discovering = true;
+        _result = null;
+        StateHasChanged();
+        _result = await DiscoveryService.DiscoverAsync(
+            _server,
+            string.IsNullOrWhiteSpace(_instanceName) ? null : _instanceName,
+            _port,
+            _useWindowsAuth ? null : _username,
+            _useWindowsAuth ? null : _password,
+            _environmentId);
+        _discovering = false;
+    }
+
+    private async Task ImportAsync()
+    {
+        if (_result is null || !_result.Success) return;
+        _importing = true;
+        var instance = await DiscoveryService.ImportAsync(_result, _environmentId);
+        _importing = false;
+        Nav.NavigateTo($"/instances/{instance.InstanceId}");
+    }
+}

@@ -1,0 +1,40 @@
+<nav class="sidebar d-flex flex-column flex-shrink-0 p-3 text-white">
+    <a href="/" class="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none">
+        <i class="bi bi-server me-2 fs-4"></i>
+        <span class="fs-5 fw-semibold">SQL Inventory</span>
+    </a>
+    <hr />
+    <ul class="nav nav-pills flex-column mb-auto">
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="" Match="NavLinkMatch.All">
+                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="instances">
+                <i class="bi bi-server me-2"></i>Instances
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="databases">
+                <i class="bi bi-database me-2"></i>Databases
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="availability-groups">
+                <i class="bi bi-diagram-3 me-2"></i>Availability Groups
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="tags">
+                <i class="bi bi-tags me-2"></i>Tags
+            </NavLink>
+        </li>
+        <hr />
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="discovery">
+                <i class="bi bi-search me-2"></i>Discovery
+            </NavLink>
+        </li>
+    </ul>
+</nav>

@@ -1,0 +1,109 @@
+@page "/tags"
+@inject TagService TagService
+
+<PageTitle>Tags - SQL Inventory</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-tags me-2"></i>Tags</h4>
+    <button class="btn btn-primary btn-sm" @onclick="StartAdd">
+        <i class="bi bi-plus-lg me-1"></i>Add Tag
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-muted d-flex gap-2"><div class="spinner-border spinner-border-sm"></div> Loading...</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var tag in _tags)
+        {
+            <div class="col-md-3">
+                <div class="card shadow-sm">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <span class="badge fs-6" style="background-color:@tag.ColorHex">@tag.Name</span>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => StartEdit(tag)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteAsync(tag.TagId)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        @if (_tags.Count == 0)
+        {
+            <div class="col-12 text-muted">No tags yet. Create one to categorize your instances.</div>
+        }
+    </div>
+}
+
+@if (_editing is not null)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editing.TagId == 0 ? "Add Tag" : "Edit Tag")</h5>
+                    <button class="btn-close" @onclick="() => _editing = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_editing.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color</label>
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="color" class="form-control form-control-color" @bind="_editing.ColorHex" />
+                            <span class="badge fs-6" style="background-color:@_editing.ColorHex">@_editing.Name</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _editing = null">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveAsync">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Tag> _tags = [];
+    private bool _loading = true;
+    private Tag? _editing;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _tags = await TagService.GetAllAsync();
+        _loading = false;
+    }
+
+    private void StartAdd() => _editing = new Tag { ColorHex = "#0d6efd" };
+    private void StartEdit(Tag tag) => _editing = new Tag { TagId = tag.TagId, Name = tag.Name, ColorHex = tag.ColorHex };
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editing?.Name)) return;
+        if (_editing.TagId == 0)
+            await TagService.CreateAsync(_editing);
+        else
+            await TagService.UpdateAsync(_editing);
+        _editing = null;
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await TagService.DeleteAsync(id);
+        await LoadAsync();
+    }
+}
