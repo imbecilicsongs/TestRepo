@@ -1,0 +1,29 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Users\\imbec\\OneDrive\\Documents\\GitHub\\TestRepo\\src\\SQLInventory\\obj\\Debug\\net8.0\\scopedcss\\projectbundle\\SQLInventory.bundle.scp.css",
+      "PackagePath": "staticwebassets\\SQLInventory.bundle.scp.css"
+    },
+    {
+      "Id": "C:\\Users\\imbec\\OneDrive\\Documents\\GitHub\\TestRepo\\src\\SQLInventory\\wwwroot\\css\\site.css",
+      "PackagePath": "staticwebassets\\css\\site.css"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.SQLInventory.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.SQLInventory.props",
+      "PackagePath": "build\\SQLInventory.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.SQLInventory.props",
+      "PackagePath": "buildMultiTargeting\\SQLInventory.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.SQLInventory.props",
+      "PackagePath": "buildTransitive\\SQLInventory.props"
+    }
+  ],
+  "ElementsToRemove": []
+}
