@@ -16,7 +16,7 @@
         <div class="row g-2 align-items-center">
             <div class="col-md-5">
                 <input class="form-control form-control-sm" placeholder="Search server name or notes..."
-                       @bind="_search" @bind:event="oninput" @oninput="LoadAsync" />
+                       @bind="_search" @bind:event="oninput" @bind:after="LoadAsync" />
             </div>
             <div class="col-md-3">
                 <select class="form-select form-select-sm" @bind="_envFilter" @bind:after="LoadAsync">

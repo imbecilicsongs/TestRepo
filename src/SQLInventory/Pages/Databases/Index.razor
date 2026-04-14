@@ -11,7 +11,7 @@
         <div class="row g-2 align-items-center">
             <div class="col-md-4">
                 <input class="form-control form-control-sm" placeholder="Search database name..."
-                       @bind="_search" @bind:event="oninput" @oninput="ApplyFilter" />
+                       @bind="_search" @bind:event="oninput" @bind:after="ApplyFilter" />
             </div>
             <div class="col-md-4">
                 <select class="form-select form-select-sm" @bind="_instanceFilter" @bind:after="LoadAsync">
@@ -107,10 +107,11 @@
         _loading = false;
     }
 
-    private void ApplyFilter()
+    private Task ApplyFilter()
     {
         _filtered = string.IsNullOrWhiteSpace(_search)
             ? _all
             : _all.Where(d => d.DatabaseName.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+        return Task.CompletedTask;
     }
 }
