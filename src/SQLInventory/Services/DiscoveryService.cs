@@ -29,7 +29,7 @@ public class DiscoveredReplica
     public string? SeedingMode { get; set; }
 }
 
-public class DiscoveryService(InstanceService instanceService, DatabaseService databaseService, AvailabilityGroupService agService)
+public class DiscoveryService(InstanceService instanceService, DatabaseService databaseService)
 {
     public async Task<DiscoveryResult> DiscoverAsync(string serverName, string? instanceName, int port,
         string? username, string? password, int environmentId, CancellationToken ct = default)
